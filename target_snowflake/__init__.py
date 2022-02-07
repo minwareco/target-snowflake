@@ -28,7 +28,11 @@ def main(config, input_stream=None):
             database=config.get('snowflake_database'),
             schema=config.get('snowflake_schema', 'PUBLIC'),
             autocommit=False,
-            client_session_keep_alive=True
+            client_session_keep_alive=True,
+            # turn off OCSP checking to avoid disconnection in the case of very long running connections
+            # why: https://www.snowflake.com/blog/latest-changes-to-how-snowflake-handles-ocsp/
+            # doc: https://community.snowflake.com/s/article/How-to-turn-off-OCSP-checking-in-Snowflake-client-drivers
+            insecure_mode=True,
     ) as connection:
         s3_config = config.get('target_s3')
 
