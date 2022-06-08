@@ -56,22 +56,57 @@ class SnowflakeTarget(SQLInterface):
         if self.persist_empty_tables:
             self.LOGGER.debug('SnowflakeTarget is persisting empty tables')
 
+        self.table_info_cache = {}
+        self.table_schema_cache = {}
+
     def metrics_tags(self):
         return {'warehouse': self.connection.configured_warehouse,
                 'database': self.connection.configured_database,
                 'schema': self.connection.configured_schema}
 
+    def _get_all_table_info(self, cur, database, schema):
+        key = '{}.{}'.format(database, schema)
+        tables = self.table_info_cache.get(key)
+
+        if tables is None:
+            tables = {}
+            cur.execute(
+                '''
+                SHOW TABLES IN SCHEMA {}.{}
+                '''.format(
+                    sql.identifier(self.connection.configured_database),
+                    sql.identifier(self.connection.configured_schema)))
+
+            for row in cur.fetchall():
+                name = row[1]
+                tables[name] = row
+            
+            self.table_info_cache[key] = tables
+        
+        return tables
+    
+    def _add_table_info(self, database, schema, table, comment):
+        key = '{}.{}'.format(database, schema)
+        tables = self.table_info_cache.get(key)
+
+        if tables is None:
+            tables = {}
+            self.table_info_cache[key] = tables
+
+        tables[table] = [None, table, database, schema, 'TABLE', comment]
+
+    def _get_table_info(self, database, schema, table):
+        key = '{}.{}'.format(database, schema)
+        tables = self.table_info_cache.get(key)
+        return tables.get(table)
+
+
     def setup_table_mapping_cache(self, cur):
         self.table_mapping_cache = {}
 
-        cur.execute(
-            '''
-            SHOW TABLES IN SCHEMA {}.{}
-            '''.format(
-                sql.identifier(self.connection.configured_database),
-                sql.identifier(self.connection.configured_schema)))
+        all_tables = self._get_all_table_info(cur, self.connection.configured_database, self.connection.configured_schema)
 
-        for row in cur.fetchall():
+        for row in all_tables.values():
             mapped_name = row[1]
             raw_json = row[5]
 
@@ -182,15 +217,13 @@ class SnowflakeTarget(SQLInterface):
 
                     names_to_paths = dict([(v, k) for k, v in self.table_mapping_cache.items()])
 
-                    cur.execute(
-                        '''
-                        SHOW TABLES LIKE '{}%' IN SCHEMA {}.{}
-                        '''.format(
-                            versioned_root_table,
-                            sql.identifier(self.connection.configured_database),
-                            sql.identifier(self.connection.configured_schema)))
+                    all_tables = self._get_all_table_info(cur, self.connection.configured_database, self.connection.configured_schema)
 
-                    for versioned_table_name in [x[1] for x in cur.fetchall()]:
+                    for versioned_table_name in all_tables.keys():
+                        # equivalent to SQL check of `<versioned_table_name> NOT LIKE '<versioned_root_table>%`
+                        if len(versioned_table_name) <= len(versioned_root_table) or table_name.startswith(versioned_root_table) == False:
+                            continue
+
                         table_name = root_table_name + versioned_table_name[len(versioned_root_table):]
                         table_path = names_to_paths[table_name]
 
@@ -267,16 +300,25 @@ class SnowflakeTarget(SQLInterface):
                 self.CREATE_TABLE_INITIAL_COLUMN_TYPE
             ))
 
-        self._set_table_metadata(cur, name, {'path': path,
-                                             'version': metadata.get('version', None),
-                                             'schema_version': metadata['schema_version'],
-                                             'mappings': {}})
+        metadata = {'path': path,
+                    'version': metadata.get('version', None),
+                    'schema_version': metadata['schema_version'],
+                    'mappings': {}}
+        self._set_table_metadata(cur, name, metadata)
 
         self.add_column_mapping(cur,
                                 name,
                                 (self.CREATE_TABLE_INITIAL_COLUMN,),
                                 self.CREATE_TABLE_INITIAL_COLUMN,
                                 json_schema.make_nullable({'type': json_schema.BOOLEAN}))
+
+        # if the table info cache is already populated, then we update it here. otherwise, leave it
+        # empty so that when it lazy-inits, it will pick up the new table naturally.
+        if len(self.table_info_cache) > 0:
+            self._add_table_info(self.connection.configured_database, self.connection.configured_schema, name, metadata)
+        
+        # reset table schema cache so the next request for schema will update from the DB
+        self.table_schema_cache = {}
 
     def add_table_mapping(self, cur, from_path, metadata):
         mapping = self.add_table_mapping_helper(from_path, self.table_mapping_cache)
@@ -547,7 +589,6 @@ class SnowflakeTarget(SQLInterface):
         return len(table_batch['records'])
 
     def add_column(self, cur, table_name, column_name, column_schema):
-
         cur.execute('''
             ALTER TABLE {database}.{table_schema}.{table_name}
             ADD COLUMN {column_name} {data_type}
@@ -557,6 +598,9 @@ class SnowflakeTarget(SQLInterface):
                 table_name=sql.identifier(table_name),
                 column_name=sql.identifier(column_name),
                 data_type=self.json_schema_to_sql_type(column_schema)))
+        
+        # reset table schema cache so the next request for schema will update from the DB
+        self.table_schema_cache = {}
 
     def migrate_column(self, cur, table_name, from_column, to_column):
         cur.execute('''
@@ -569,6 +613,9 @@ class SnowflakeTarget(SQLInterface):
                 to_column=sql.identifier(to_column),
                 from_column=sql.identifier(from_column)))
 
+        # reset table schema cache so the next request for schema will update from the DB
+        self.table_schema_cache = {}
+
     def drop_column(self, cur, table_name, column_name):
         cur.execute('''
             ALTER TABLE {database}.{table_schema}.{table_name}
@@ -579,6 +626,9 @@ class SnowflakeTarget(SQLInterface):
                 table_name=sql.identifier(table_name),
                 column_name=sql.identifier(column_name)))
 
+        # reset table schema cache so the next request for schema will update from the DB
+        self.table_schema_cache = {}
+
     def make_column_nullable(self, cur, table_name, column_name):
         cur.execute('''
             ALTER TABLE {database}.{table_schema}.{table_name}
@@ -588,6 +638,9 @@ class SnowflakeTarget(SQLInterface):
             table_schema=sql.identifier(self.connection.configured_schema),
             table_name=sql.identifier(table_name),
             column_name=sql.identifier(column_name)))
+
+        # reset table schema cache so the next request for schema will update from the DB
+        self.table_schema_cache = {}
 
     def _set_table_metadata(self, cur, table_name, metadata):
         """
@@ -605,30 +658,21 @@ class SnowflakeTarget(SQLInterface):
             sql.identifier(self.connection.configured_schema),
             sql.identifier(table_name),
             json.dumps(metadata)))
+        
+        # if the table is in our info cache, then update it there. otherwise, it will be lazy-loaded
+        # naturally on the first request for it later
+        table_info = self._get_table_info(self.connection.configured_database, self.connection.configured_schema, table_name)
+        if table_info is not None:
+            table_info[5] = json.dumps(metadata)
 
     def _get_table_metadata(self, cur, table_name):
-        cur.execute(
-            '''
-            SHOW TABLES LIKE '{}' IN SCHEMA {}.{}
-            '''.format(
-                table_name,
-                sql.identifier(self.connection.configured_database),
-                sql.identifier(self.connection.configured_schema),))
-        tables = cur.fetchall()
+        all_tables = self._get_all_table_info(cur, self.connection.configured_database, self.connection.configured_schema)
+        table = all_tables.get(table_name)
 
-        if not tables:
+        if table is None:
             return None
-        
-        if len(tables) != 1:
-            raise SnowflakeError(
-                '{} tables returned while searching for: {}.{}.{}'.format(
-                    len(tables),
-                    self.connection.configured_database,
-                    self.connection.configured_schema,
-                    table_name
-                ))
 
-        comment = tables[0][5]
+        comment = table[5]
 
         if comment:
             try:
@@ -673,30 +717,45 @@ class SnowflakeTarget(SQLInterface):
         return cur.fetchone()[0] == 0
 
     def get_table_schema(self, cur, name):
-        metadata = self._get_table_metadata(cur, name)
+        key = '{}.{}'.format(self.connection.configured_database, self.connection.configured_schema)
+        all_tables = self.table_schema_cache.get(key)
 
-        if not metadata:
-            return None
+        # populate cache for all tables in the schema if needed
+        if all_tables is None:
+            all_tables = {}
+            cur.execute('''
+                SELECT table_name, column_name, data_type, is_nullable
+                FROM {}.information_schema.columns
+                WHERE table_schema = '{}'
+                ORDER BY table_name, column_name
+                '''.format(
+                    sql.identifier(self.connection.configured_database),
+                    self.connection.configured_schema,
+                ))
 
-        cur.execute('''
-            SELECT column_name, data_type, is_nullable
-            FROM {}.information_schema.columns
-            WHERE table_schema = '{}' AND table_name = '{}'
-            '''.format(
-                sql.identifier(self.connection.configured_database),
-                self.connection.configured_schema,
-                name
-            ))
-
-        properties = {}
-        for column in cur.fetchall():
-            properties[column[0]] = self.sql_type_to_json_schema(column[1], column[2] == 'YES')
-
-        metadata['name'] = name
-        metadata['type'] = 'TABLE_SCHEMA'
-        metadata['schema'] = {'properties': properties}
-
-        return metadata
+            cur_table = None
+            skip_table = False
+            for row in cur.fetchall():
+                cur_table_name = row[0]
+                if cur_table is None or cur_table['name'] != cur_table_name:
+                    skip_table = False
+                    cur_table = self._get_table_metadata(cur, cur_table_name)
+                    # if we dont have metadata for this table, we need to skip it
+                    if cur_table is None:
+                        cur_table = { 'name': cur_table_name } # placeholder just to make the loop work
+                        skip_table = True
+                        continue
+                    cur_table['name'] = cur_table_name
+                    cur_table['type'] = 'TABLE_SCHEMA'
+                    cur_table['schema'] = {'properties': {}}
+                    all_tables[cur_table_name] = cur_table
+                # add column definition to the current table
+                if skip_table == False:
+                    cur_table['schema']['properties'][row[1]] = self.sql_type_to_json_schema(row[2], row[3] == 'YES')    
+            
+            self.table_schema_cache[key] = all_tables
+        
+        return all_tables.get(name)
 
     def sql_type_to_json_schema(self, sql_type, is_nullable):
         """
