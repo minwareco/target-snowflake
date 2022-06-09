@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import uuid
+from functools import lru_cache
 
 import arrow
 from psycopg2 import sql
@@ -20,6 +21,16 @@ from target_postgres.sql_base import SEPARATOR, SQLInterface
 from target_snowflake import sql
 from target_snowflake.connection import connect
 from target_snowflake.exceptions import SnowflakeError
+
+# copied in from optimization in TargetPostgres: https://github.com/datamill-co/target-postgres/commit/6a3da026d2bb4681fdf46bd7ca69fbb164489d8a
+@lru_cache(maxsize=128)
+def _format_datetime(value):
+    """
+    Format a datetime value. This is only called from the
+    SnowflakeTarget.serialize_table_record_datetime_value
+    but this non-method version allows caching
+    """
+    return arrow.get(value).format('YYYY-MM-DD HH:mm:ss.SSSSZZ')
 
 class SnowflakeTarget(SQLInterface):
     """
@@ -334,7 +345,7 @@ class SnowflakeTarget(SQLInterface):
         return value
 
     def serialize_table_record_datetime_value(self, remote_schema, streamed_schema, field, value):
-        return arrow.get(value).format('YYYY-MM-DD HH:mm:ss.SSSSZZ')
+        return _format_datetime(value)
 
     def perform_update(self, cur, target_table_name, temp_table_name, key_properties, columns, subkeys):
         full_table_name = '{}.{}.{}'.format(
