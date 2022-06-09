@@ -545,8 +545,11 @@ class SnowflakeTarget(SQLInterface):
             subkeys)
 
     def write_table_batch(self, cur, table_batch, metadata):
-        remote_schema = table_batch['remote_schema']
+        record_count = len(table_batch['records'])
+        if record_count == 0:
+            return 0
 
+        remote_schema = table_batch['remote_schema']
 
         ## Create temp table to upload new data to
         target_table_name = self.canonicalize_identifier('tmp_' + str(uuid.uuid4()))
@@ -586,7 +589,7 @@ class SnowflakeTarget(SQLInterface):
                               csv_headers,
                               csv_rows)
 
-        return len(table_batch['records'])
+        return record_count
 
     def add_column(self, cur, table_name, column_name, column_schema):
         cur.execute('''
