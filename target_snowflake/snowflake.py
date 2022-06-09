@@ -22,7 +22,7 @@ from target_snowflake import sql
 from target_snowflake.connection import connect
 from target_snowflake.exceptions import SnowflakeError
 
-# copied in from optimization in TargetPostgres: https://github.com/datamill-co/target-postgres/commit/6a3da026d2bb4681fdf46bd7ca69fbb164489d8a
+# copied in from optimization in PostgresTarget: https://github.com/datamill-co/target-postgres/commit/6a3da026d2bb4681fdf46bd7ca69fbb164489d8a
 @lru_cache(maxsize=128)
 def _format_datetime(value):
     """
