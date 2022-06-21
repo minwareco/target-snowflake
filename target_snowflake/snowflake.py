@@ -104,7 +104,7 @@ class SnowflakeTarget(SQLInterface):
             tables = {}
             self.table_info_cache[key] = tables
 
-        tables[table] = [None, table, database, schema, 'TABLE', comment]
+        tables[table] = [None, table, database, schema, 'TABLE', json.dumps(comment)]
 
     def _get_table_info(self, database, schema, table):
         key = '{}.{}'.format(database, schema)
@@ -317,20 +317,20 @@ class SnowflakeTarget(SQLInterface):
                     'mappings': {}}
         self._set_table_metadata(cur, name, metadata)
 
+        # if the table info cache is already populated, then we update it here. otherwise, leave it
+        # empty so that when it lazy-inits, it will pick up the new table naturally.
+        if len(self.table_info_cache) > 0:
+            self._add_table_info(self.connection.configured_database, self.connection.configured_schema, name, metadata)
+
+        # reset table schema cache so the next request for schema will update from the DB
+        self.table_schema_cache = {}
+
         self.add_column_mapping(cur,
                                 name,
                                 (self.CREATE_TABLE_INITIAL_COLUMN,),
                                 self.CREATE_TABLE_INITIAL_COLUMN,
                                 json_schema.make_nullable({'type': json_schema.BOOLEAN}))
-
-        # if the table info cache is already populated, then we update it here. otherwise, leave it
-        # empty so that when it lazy-inits, it will pick up the new table naturally.
-        if len(self.table_info_cache) > 0:
-            self._add_table_info(self.connection.configured_database, self.connection.configured_schema, name, metadata)
         
-        # reset table schema cache so the next request for schema will update from the DB
-        self.table_schema_cache = {}
-
     def add_table_mapping(self, cur, from_path, metadata):
         mapping = self.add_table_mapping_helper(from_path, self.table_mapping_cache)
 
