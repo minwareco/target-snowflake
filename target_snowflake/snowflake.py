@@ -92,7 +92,7 @@ class SnowflakeTarget(SQLInterface):
                 name = row[1]
                 tables[name] = row
             
-            self.table_info_cache[key] = tables
+            self.table_info_cache[key] = list(tables)
         
         return tables
     
