@@ -92,7 +92,7 @@ class SnowflakeTarget(SQLInterface):
                 name = row[1]
                 tables[name] = row
             
-            self.table_info_cache[key] = list(tables)
+            self.table_info_cache[key] = tables
         
         return tables
     
@@ -105,7 +105,7 @@ class SnowflakeTarget(SQLInterface):
             self.table_info_cache[key] = tables
 
         tables[table] = [None, table, database, schema, 'TABLE', json.dumps(comment)]
-
+    
     def _get_table_info(self, database, schema, table):
         key = '{}.{}'.format(database, schema)
         tables = self.table_info_cache.get(key)
@@ -677,6 +677,9 @@ class SnowflakeTarget(SQLInterface):
         # naturally on the first request for it later
         table_info = self._get_table_info(self.connection.configured_database, self.connection.configured_schema, table_name)
         if table_info is not None:
+            self.LOGGER.info(table_info)
+            # BUGBUG: this sometimes throws an exception about this being a tuple, but I couldn't
+            # reproduce it when deleting and re-adding the schema
             table_info[5] = json.dumps(metadata)
 
     def _get_table_metadata(self, cur, table_name):
