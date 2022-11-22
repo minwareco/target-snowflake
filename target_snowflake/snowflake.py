@@ -91,11 +91,11 @@ class SnowflakeTarget(SQLInterface):
             for row in cur.fetchall():
                 name = row[1]
                 tables[name] = row
-            
+
             self.table_info_cache[key] = tables
-        
+
         return tables
-    
+
     def _add_table_info(self, database, schema, table, comment):
         key = '{}.{}'.format(database, schema)
         tables = self.table_info_cache.get(key)
@@ -105,7 +105,7 @@ class SnowflakeTarget(SQLInterface):
             self.table_info_cache[key] = tables
 
         tables[table] = [None, table, database, schema, 'TABLE', json.dumps(comment)]
-    
+
     def _get_table_info(self, database, schema, table):
         key = '{}.{}'.format(database, schema)
         tables = self.table_info_cache.get(key)
@@ -330,7 +330,7 @@ class SnowflakeTarget(SQLInterface):
                                 (self.CREATE_TABLE_INITIAL_COLUMN,),
                                 self.CREATE_TABLE_INITIAL_COLUMN,
                                 json_schema.make_nullable({'type': json_schema.BOOLEAN}))
-        
+
     def add_table_mapping(self, cur, from_path, metadata):
         mapping = self.add_table_mapping_helper(from_path, self.table_mapping_cache)
 
@@ -612,7 +612,7 @@ class SnowflakeTarget(SQLInterface):
                 table_name=sql.identifier(table_name),
                 column_name=sql.identifier(column_name),
                 data_type=self.json_schema_to_sql_type(column_schema)))
-        
+
         # reset table schema cache so the next request for schema will update from the DB
         self.table_schema_cache = {}
 
@@ -672,15 +672,12 @@ class SnowflakeTarget(SQLInterface):
             sql.identifier(self.connection.configured_schema),
             sql.identifier(table_name),
             json.dumps(metadata)))
-        
+
         # if the table is in our info cache, then update it there. otherwise, it will be lazy-loaded
         # naturally on the first request for it later
         table_info = self._get_table_info(self.connection.configured_database, self.connection.configured_schema, table_name)
         if table_info is not None:
-            self.LOGGER.info(table_info)
-            # BUGBUG: this sometimes throws an exception about this being a tuple, but I couldn't
-            # reproduce it when deleting and re-adding the schema
-            table_info[5] = json.dumps(metadata)
+            self._add_table_info(self.connection.configured_database, self.connection.configured_schema, table_name, metadata)
 
     def _get_table_metadata(self, cur, table_name):
         all_tables = self._get_all_table_info(cur, self.connection.configured_database, self.connection.configured_schema)
@@ -768,10 +765,10 @@ class SnowflakeTarget(SQLInterface):
                     all_tables[cur_table_name] = cur_table
                 # add column definition to the current table
                 if skip_table == False:
-                    cur_table['schema']['properties'][row[1]] = self.sql_type_to_json_schema(row[2], row[3] == 'YES')    
-            
+                    cur_table['schema']['properties'][row[1]] = self.sql_type_to_json_schema(row[2], row[3] == 'YES')
+
             self.table_schema_cache[key] = all_tables
-        
+
         return all_tables.get(name)
 
     def sql_type_to_json_schema(self, sql_type, is_nullable):
