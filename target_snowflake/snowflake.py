@@ -91,11 +91,11 @@ class SnowflakeTarget(SQLInterface):
             for row in cur.fetchall():
                 name = row[1]
                 tables[name] = row
-            
+
             self.table_info_cache[key] = tables
-        
+
         return tables
-    
+
     def _add_table_info(self, database, schema, table, comment):
         key = '{}.{}'.format(database, schema)
         tables = self.table_info_cache.get(key)
@@ -327,7 +327,7 @@ class SnowflakeTarget(SQLInterface):
         # empty so that when it lazy-inits, it will pick up the new table naturally.
         if len(self.table_info_cache) > 0:
             self._add_table_info(self.connection.configured_database, self.connection.configured_schema, name, metadata)
-        
+
         # reset table schema cache so the next request for schema will update from the DB
         self.table_schema_cache = {}
 
@@ -360,6 +360,7 @@ class SnowflakeTarget(SQLInterface):
 
         pk_temp_select_list = []
         pk_where_list = []
+        dedupped_col_list = []
         pk_null_list = []
         cxt_where_list = []
         for pk in key_properties:
@@ -373,6 +374,10 @@ class SnowflakeTarget(SQLInterface):
                     temp_table=full_temp_table_name,
                     pk=pk_identifier))
 
+            dedupped_col_list.append(
+                '"dedupped".{pk}'.format(
+                    pk=pk_identifier))
+
             pk_null_list.append(
                 '{table}.{pk} IS NULL'.format(
                     table=full_table_name,
@@ -384,6 +389,7 @@ class SnowflakeTarget(SQLInterface):
                     pk=pk_identifier))
         pk_temp_select = ', '.join(pk_temp_select_list)
         pk_where = ' AND '.join(pk_where_list)
+        dedupped_col = ' AND '.join(dedupped_col_list)
         pk_null = ' AND '.join(pk_null_list)
         cxt_where = ' AND '.join(cxt_where_list)
 
@@ -425,15 +431,17 @@ class SnowflakeTarget(SQLInterface):
 
         cur.execute('''
             DELETE FROM {table} USING (
-                    SELECT "dedupped".*
+                    SELECT {dedupped_col}
                     FROM (
                         SELECT *,
                                ROW_NUMBER() OVER (PARTITION BY {pk_temp_select}
                                                   {distinct_order_by}) AS "_sdc_pk_ranked"
                         FROM {temp_table}
-                        {distinct_order_by}) AS "dedupped"
+                        {distinct_order_by}
+                    ) AS "dedupped"
                     JOIN {table} ON {pk_where}{sequence_join}
                     WHERE "_sdc_pk_ranked" = 1
+                    group by {dedupped_col}
                 ) AS "pks" WHERE {cxt_where};
             '''.format(
                 table=full_table_name,
@@ -442,7 +450,8 @@ class SnowflakeTarget(SQLInterface):
                 pk_where=pk_where,
                 cxt_where=cxt_where,
                 sequence_join=sequence_join,
-                distinct_order_by=distinct_order_by))
+                distinct_order_by=distinct_order_by,
+                dedupped_col=dedupped_col))
 
         cur.execute('''
             INSERT INTO {table}({insert_columns}) (
@@ -612,7 +621,7 @@ class SnowflakeTarget(SQLInterface):
                 table_name=sql.identifier(table_name),
                 column_name=sql.identifier(column_name),
                 data_type=self.json_schema_to_sql_type(column_schema)))
-        
+
         # reset table schema cache so the next request for schema will update from the DB
         self.table_schema_cache = {}
 
@@ -672,7 +681,7 @@ class SnowflakeTarget(SQLInterface):
             sql.identifier(self.connection.configured_schema),
             sql.identifier(table_name),
             json.dumps(metadata)))
-        
+
         # if the table is in our info cache, then update it there. otherwise, it will be lazy-loaded
         # naturally on the first request for it later
         table_info = self._get_table_info(self.connection.configured_database, self.connection.configured_schema, table_name)
@@ -765,10 +774,10 @@ class SnowflakeTarget(SQLInterface):
                     all_tables[cur_table_name] = cur_table
                 # add column definition to the current table
                 if skip_table == False:
-                    cur_table['schema']['properties'][row[1]] = self.sql_type_to_json_schema(row[2], row[3] == 'YES')    
-            
+                    cur_table['schema']['properties'][row[1]] = self.sql_type_to_json_schema(row[2], row[3] == 'YES')
+
             self.table_schema_cache[key] = all_tables
-        
+
         return all_tables.get(name)
 
     def sql_type_to_json_schema(self, sql_type, is_nullable):
