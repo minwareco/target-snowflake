@@ -360,7 +360,7 @@ class SnowflakeTarget(SQLInterface):
 
         pk_temp_select_list = []
         pk_where_list = []
-        dedupped_col_list = []
+        pk_dedupped_col_list = []
         pk_null_list = []
         cxt_where_list = []
         for pk in key_properties:
@@ -374,7 +374,7 @@ class SnowflakeTarget(SQLInterface):
                     temp_table=full_temp_table_name,
                     pk=pk_identifier))
 
-            dedupped_col_list.append(
+            pk_dedupped_col_list.append(
                 '"dedupped".{pk}'.format(
                     pk=pk_identifier))
 
@@ -389,7 +389,7 @@ class SnowflakeTarget(SQLInterface):
                     pk=pk_identifier))
         pk_temp_select = ', '.join(pk_temp_select_list)
         pk_where = ' AND '.join(pk_where_list)
-        dedupped_col = ' AND '.join(dedupped_col_list)
+        pk_dedupped_col = ', '.join(pk_dedupped_col_list)
         pk_null = ' AND '.join(pk_null_list)
         cxt_where = ' AND '.join(cxt_where_list)
 
@@ -431,7 +431,7 @@ class SnowflakeTarget(SQLInterface):
 
         cur.execute('''
             DELETE FROM {table} USING (
-                    SELECT {dedupped_col}
+                    SELECT {pk_dedupped_col}
                     FROM (
                         SELECT *,
                                ROW_NUMBER() OVER (PARTITION BY {pk_temp_select}
@@ -441,7 +441,7 @@ class SnowflakeTarget(SQLInterface):
                     ) AS "dedupped"
                     JOIN {table} ON {pk_where}{sequence_join}
                     WHERE "_sdc_pk_ranked" = 1
-                    group by {dedupped_col}
+                    GROUP BY {pk_dedupped_col}
                 ) AS "pks" WHERE {cxt_where};
             '''.format(
                 table=full_table_name,
@@ -451,7 +451,7 @@ class SnowflakeTarget(SQLInterface):
                 cxt_where=cxt_where,
                 sequence_join=sequence_join,
                 distinct_order_by=distinct_order_by,
-                dedupped_col=dedupped_col))
+                pk_dedupped_col=pk_dedupped_col))
 
         cur.execute('''
             INSERT INTO {table}({insert_columns}) (
