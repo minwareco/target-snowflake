@@ -10,8 +10,8 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='target-snowflake',
-    url='https://github.com/datamill-co/target-snowflake',
-    author='datamill',
+    url='https://github.com/minwareco/target-snowflake',
+    author='minware',
     version="0.2.4",
     description='Singer.io target for loading data into Snowflake',
     long_description=long_description,
@@ -20,7 +20,7 @@ setup(
     py_modules=['target_snowflake'],
     install_requires=[
         'singer-python==5.9.0',
-        'singer-target-postgres@git+https://github.com/datamill-co/target-postgres.git#279cb62d2a80b1bd8e8ab1191e7a1d17c19383a8',
+        'singer-target-postgres@git+https://github.com/minwareco/target-postgres.git#2fe13abd9945556b9cb19aded89e09faa0f32e96',
         'target-redshift==0.2.4',
         'botocore<1.13.0,>=1.12.253',
         'snowflake-connector-python==2.2.7'
