@@ -12,7 +12,7 @@ setup(
     name='target-snowflake',
     url='https://github.com/minwareco/target-snowflake',
     author='minware',
-    version="0.2.4",
+    version="0.2.5",
     description='Singer.io target for loading data into Snowflake',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -30,9 +30,8 @@ setup(
     ],
     extras_require={
         'tests': [
-            "chance==0.110",
-            "Faker==4.0.3",
-            "pytest==5.4.1"
+            "Faker==19.13.0",
+            "pytest==7.4.3"
         ]},
     entry_points='''
       [console_scripts]

@@ -30,7 +30,7 @@ class MillisLoggingCursor(SnowflakeCursor):
 
 class MillisLoggingDictCursor(MillisLoggingCursor):
     def __init__(self, connection):
-        MillisLoggingCursor.__init__(self, connection, DictJsonResult)
+        MillisLoggingCursor.__init__(self, connection, use_dict_result=True, json_result_class=DictJsonResult)
 
 
 class Connection(SnowflakeConnection):

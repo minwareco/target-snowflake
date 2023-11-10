@@ -232,7 +232,7 @@ class SnowflakeTarget(SQLInterface):
 
                     for versioned_table_name in all_tables.keys():
                         # equivalent to SQL check of `<versioned_table_name> NOT LIKE '<versioned_root_table>%`
-                        if len(versioned_table_name) <= len(versioned_root_table) or table_name.startswith(versioned_root_table) == False:
+                        if len(versioned_table_name) <= len(versioned_root_table) or versioned_table_name.startswith(versioned_root_table) == False:
                             continue
 
                         table_name = root_table_name + versioned_table_name[len(versioned_root_table):]

@@ -1,12 +1,12 @@
 import json
 import os
 import random
-
-import arrow
-from chance import chance
-from faker import Faker
 import pytest
+import arrow
 
+from faker import Faker
+
+from target_postgres.singer import SEQUENCE
 from target_snowflake import sql
 from target_snowflake.connection import connect
 
@@ -127,20 +127,20 @@ class FakeStream(object):
         if sequence:
             self.sequence = sequence
         else:
-            self.sequence = arrow.get().timestamp
+            self.sequence = arrow.get().int_timestamp
         self.duplicate_sequence_delta = duplicate_sequence_delta
 
     def duplicate(self, force=False):
         if self.duplicates > 0 and \
                 len(self.records) > 0 and \
                 self.duplicates_written < self.duplicates and \
-                (force or chance.boolean(likelihood=30)):
+                (force or fake.pybool(30)):
             self.duplicates_written += 1
             random_index = random.randint(0, len(self.records) - 1)
             record = self.records[random_index]
             self.duplicate_pks_used.append(record['id'])
             record_message = self.generate_record_message(record=record)
-            record_message['sequence'] = self.sequence + self.duplicate_sequence_delta
+            record_message[SEQUENCE] = self.sequence + self.duplicate_sequence_delta
             return record_message
         else:
             return False
@@ -155,7 +155,7 @@ class FakeStream(object):
             'type': 'RECORD',
             'stream': self.stream,
             'record': record,
-            'sequence': self.sequence
+            SEQUENCE: self.sequence
         }
 
         if self.version is not None:
@@ -163,6 +163,7 @@ class FakeStream(object):
 
         self.record_message_count += 1
 
+        print(json.dumps(message, indent=2, default=str))
         return message
 
     def activate_version(self):
@@ -200,23 +201,23 @@ class CatStream(FakeStream):
 
     def generate_record(self):
         adoption = None
-        if self.nested_count or chance.boolean(likelihood=70):
+        if self.nested_count or fake.pybool(70):
             immunizations = []
             for i in range(0, self.nested_count or random.randint(0, 4)):
                 immunizations.append({
-                    'type': chance.pickone(['FIV', 'Panleukopenia', 'Rabies', 'Feline Leukemia']),
-                    'date_administered': chance.date(minyear=2012).isoformat()
+                    'type': fake.random_element(['FIV', 'Panleukopenia', 'Rabies', 'Feline Leukemia']),
+                    'date_administered': fake.date_time_this_year().isoformat()
                 })
             adoption = {
-                'adopted_on': chance.date(minyear=2012).isoformat(),
-                'was_foster': chance.boolean(),
+                'adopted_on': fake.date_time_this_year().isoformat(),
+                'was_foster': fake.pybool(),
                 'immunizations': immunizations
             }
 
         return {
             'id': self.id,
-            'name': fake.first_name(),
-            'pattern': chance.pickone(['Tabby', 'Tuxedo', 'Calico', 'Tortoiseshell']),
+            'name': fake.unique.first_name(),
+            'pattern': fake.random_element(['Tabby', 'Tuxedo', 'Calico', 'Tortoiseshell']),
             'age': random.randint(1, 15),
             'adoption': adoption
         }
@@ -226,13 +227,13 @@ class InvalidCatStream(CatStream):
     def generate_record(self):
         record = CatStream.generate_record(self)
 
-        if chance.boolean(likelihood=50):
+        if fake.pybool(50):
             record['adoption'] = ['invalid', 'adoption']
-        elif chance.boolean(likelihood=50):
+        elif fake.pybool(50):
             record['age'] = 'very invalid age'
-        elif record['adoption'] and chance.boolean(likelihood=50):
+        elif record['adoption'] and fake.pybool(50):
             record['adoption']['immunizations'] = {
-                'type': chance.pickone(['a', 'b', 'c']),
+                'type': fake.random_element(['a', 'b', 'c']),
                 'date_administered': ['clearly', 'not', 'a', 'date']
             }
         else:
@@ -409,18 +410,18 @@ class MultiTypeStream(FakeStream):
         value_integer = random.randint(-314159265359, 314159265359)
         value_integer_as_number = float(random.randint(-314159265359, 314159265359))
         value_number = random.uniform(-314159265359, 314159265359)
-        value_boolean = chance.boolean()
-        value_date_time_string = chance.date(minyear=2012).isoformat()
+        value_boolean = fake.pybool()
+        value_date_time_string = fake.date_time_this_year().isoformat()
         value_array = []
         for i in range(random.randint(0, 1000)):
             value_array.append(random.randint(-314, 314))
 
         value_object = {'i': random.randint(-314159265359, 314159265359),
                         'n': random.uniform(-314159265359, 314159265359),
-                        'b': chance.boolean()}
+                        'b': fake.pybool()}
 
         return {
-            'every_type': chance.pickone(
+            'every_type': fake.random_element(
                 [value_null,
                  value_integer,
                  value_integer_as_number,
