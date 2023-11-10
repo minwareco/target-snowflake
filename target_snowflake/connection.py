@@ -5,7 +5,6 @@ import time
 import singer
 from snowflake.connector import DictCursor, SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
-from snowflake.connector.json_result import DictJsonResult
 
 # Ignore DEBUG, and INFO level messages from Snowflake Connector
 logger = logging.getLogger("snowflake.connector")
@@ -30,7 +29,7 @@ class MillisLoggingCursor(SnowflakeCursor):
 
 class MillisLoggingDictCursor(MillisLoggingCursor):
     def __init__(self, connection):
-        MillisLoggingCursor.__init__(self, connection, use_dict_result=True, json_result_class=DictJsonResult)
+        MillisLoggingCursor.__init__(self, connection, use_dict_result=True)
 
 
 class Connection(SnowflakeConnection):
