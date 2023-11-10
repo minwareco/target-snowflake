@@ -216,7 +216,7 @@ class CatStream(FakeStream):
 
         return {
             'id': self.id,
-            'name': fake.unique.first_name(),
+            'name': fake.unique.name(),
             'pattern': fake.random_element(['Tabby', 'Tuxedo', 'Calico', 'Tortoiseshell']),
             'age': random.randint(1, 15),
             'adoption': adoption
