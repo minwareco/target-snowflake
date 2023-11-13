@@ -7,4 +7,4 @@ pip install -e .[tests]
 
 echo -e "\n\nINFO: Dev environment ready."
 
-tail -f /dev/null
+sleep infinity

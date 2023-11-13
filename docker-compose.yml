@@ -1,7 +1,7 @@
 version: "2"
 services:
   target-snowflake:
-    image: python:3.7.7-stretch
+    image: python:3.9-bullseye
     working_dir: /code
     entrypoint: /code/docker-entrypoint.sh
     environment:
