@@ -612,15 +612,34 @@ class SnowflakeTarget(SQLInterface):
         return record_count
 
     def add_column(self, cur, table_name, column_name, column_schema):
-        cur.execute('''
-            ALTER TABLE {database}.{table_schema}.{table_name}
-            ADD COLUMN {column_name} {data_type}
+        table_schema = self.get_table_schema(cur, table_name)
+        if table_schema['schema']['properties'][column_name]:
+            data_type = self.json_schema_to_sql_type(column_schema)
+            not_null = 'NOT NULL' in data_type
+            data_type = data_type.replace('NOT NULL', '')
+            cur.execute('''
+                ALTER TABLE {database}.{table_schema}.{table_name} ALTER (
+                    {column_name} {data_type},
+                    {column_name} {set_or_drop_null} NOT NULL
+                )
             '''.format(
                 database=sql.identifier(self.connection.configured_database),
                 table_schema=sql.identifier(self.connection.configured_schema),
                 table_name=sql.identifier(table_name),
                 column_name=sql.identifier(column_name),
-                data_type=self.json_schema_to_sql_type(column_schema)))
+                data_type=data_type,
+                set_or_drop_null=('SET' if not_null else 'DROP')))
+
+        else:
+            cur.execute('''
+                ALTER TABLE {database}.{table_schema}.{table_name}
+                ADD COLUMN {column_name} {data_type}
+                '''.format(
+                    database=sql.identifier(self.connection.configured_database),
+                    table_schema=sql.identifier(self.connection.configured_schema),
+                    table_name=sql.identifier(table_name),
+                    column_name=sql.identifier(column_name),
+                    data_type=self.json_schema_to_sql_type(column_schema)))
 
         # reset table schema cache so the next request for schema will update from the DB
         self.table_schema_cache = {}
