@@ -613,7 +613,7 @@ class SnowflakeTarget(SQLInterface):
 
     def add_column(self, cur, table_name, column_name, column_schema):
         table_schema = self.get_table_schema(cur, table_name)
-        if table_schema['schema']['properties'][column_name]:
+        if column_name in table_schema['schema']['properties'] and table_schema['schema']['properties'][column_name]:
             data_type = self.json_schema_to_sql_type(column_schema)
             not_null = 'NOT NULL' in data_type
             data_type = data_type.replace('NOT NULL', '')
