@@ -20,7 +20,7 @@ setup(
     py_modules=['target_snowflake'],
     install_requires=[
         'singer-python==5.9.0',
-        'singer-target-postgres@git+https://github.com/minwareco/target-postgres.git#970b1f64441925461b796b97494c66ad37b49733',
+        'singer-target-postgres@git+https://github.com/minwareco/target-postgres.git#e389afca4fa931e50f049380de92f06e43f2db5a',
         'target-redshift==0.2.4',
         'botocore<1.13.0,>=1.12.253',
         'snowflake-connector-python==3.9.1',
