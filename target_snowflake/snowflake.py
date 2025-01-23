@@ -347,7 +347,7 @@ class SnowflakeTarget(SQLInterface):
     def serialize_table_record_datetime_value(self, remote_schema, streamed_schema, field, value):
         return _format_datetime(value)
 
-    def perform_update(self, cur, target_table_name, temp_table_name, key_properties, columns, subkeys):
+    def perform_update(self, cur, target_table_name, temp_table_name, key_properties, columns, subkeys, noDedupe=False):
         full_table_name = '{}.{}.{}'.format(
             sql.identifier(self.connection.configured_database),
             sql.identifier(self.connection.configured_schema),
@@ -429,9 +429,19 @@ class SnowflakeTarget(SQLInterface):
         insert_columns = ', '.join(insert_columns_list)
         dedupped_columns = ', '.join(dedupped_columns_list)
 
-        cur.execute('''
-            DELETE FROM {table} USING (
-                    SELECT {pk_dedupped_col}
+        if not noDedupe:
+            cur.execute('''
+                INSERT INTO {table}({insert_columns}) (
+                    SELECT * FROM {temp_table}
+                );
+                '''.format(
+                    table=full_table_name,
+                    temp_table=full_temp_table_name,
+                    insert_columns=insert_columns))
+        else:
+            cur.execute('''
+                DELETE FROM {table} USING (
+                        SELECT {pk_dedupped_col}
                     FROM (
                         SELECT *,
                                ROW_NUMBER() OVER (PARTITION BY {pk_temp_select}
@@ -453,27 +463,27 @@ class SnowflakeTarget(SQLInterface):
                 distinct_order_by=distinct_order_by,
                 pk_dedupped_col=pk_dedupped_col))
 
-        cur.execute('''
-            INSERT INTO {table}({insert_columns}) (
-                SELECT {dedupped_columns}
-                FROM (
-                    SELECT *,
-                           ROW_NUMBER() OVER (PARTITION BY {insert_distinct_on}
-                                              {insert_distinct_order_by}) AS "_sdc_pk_ranked"
-                    FROM {temp_table}
-                    {insert_distinct_order_by}) AS "dedupped"
-                LEFT JOIN {table} ON {pk_where}
-                WHERE "_sdc_pk_ranked" = 1 AND {pk_null}
-            );
-            '''.format(
-                table=full_table_name,
-                temp_table=full_temp_table_name,
-                pk_where=pk_where,
-                pk_null=pk_null,
-                insert_distinct_on=insert_distinct_on,
-                insert_distinct_order_by=insert_distinct_order_by,
-                insert_columns=insert_columns,
-                dedupped_columns=dedupped_columns))
+            cur.execute('''
+                INSERT INTO {table}({insert_columns}) (
+                    SELECT {dedupped_columns}
+                    FROM (
+                        SELECT *,
+                            ROW_NUMBER() OVER (PARTITION BY {insert_distinct_on}
+                                                {insert_distinct_order_by}) AS "_sdc_pk_ranked"
+                        FROM {temp_table}
+                        {insert_distinct_order_by}) AS "dedupped"
+                    LEFT JOIN {table} ON {pk_where}
+                    WHERE "_sdc_pk_ranked" = 1 AND {pk_null}
+                );
+                '''.format(
+                    table=full_table_name,
+                    temp_table=full_temp_table_name,
+                    pk_where=pk_where,
+                    pk_null=pk_null,
+                    insert_distinct_on=insert_distinct_on,
+                    insert_distinct_order_by=insert_distinct_order_by,
+                    insert_columns=insert_columns,
+                    dedupped_columns=dedupped_columns))
 
         if not self.s3:
             # Clear out the associated stage for the table
@@ -494,7 +504,8 @@ class SnowflakeTarget(SQLInterface):
                          remote_schema,
                          temp_table_name,
                          columns,
-                         csv_rows):
+                         csv_rows,
+                         noDedupe=False):
         params = []
 
         if self.s3:
@@ -562,14 +573,25 @@ class SnowflakeTarget(SQLInterface):
             temp_table_name,
             canonicalized_key_properties,
             columns,
-            subkeys)
+            subkeys,
+            noDedupe)
 
-    def write_table_batch(self, cur, table_batch, metadata):
+    def shouldNotDedupe(self, csv_headers):
+        return set(csv_headers) == set(['ID', 'OBJECT', '_SDC_BATCHED_AT', '_SDC_RECEIVED_AT', '_SDC_SEQUENCE', '_SDC_TABLE_VERSION', '_SDC_TARGET_SNOWFLAKE_CREATE_TABLE_PLACEHOLDER'])
+
+    def write_table_batch(self, cur, table_batch, metadata, noDedupe=False):
         record_count = len(table_batch['records'])
         if record_count == 0:
             return 0
 
         remote_schema = table_batch['remote_schema']
+
+        ## Make streamable CSV records
+        csv_headers = list(remote_schema['schema']['properties'].keys())
+        rows_iter = iter(table_batch['records'])
+
+        # Special case for id, object schema: don't bother dedupine
+        noDedupe = self.shouldNotDedupe(csv_headers)
 
         ## Create temp table to upload new data to
         target_table_name = self.canonicalize_identifier('tmp_' + str(uuid.uuid4()))
@@ -581,10 +603,6 @@ class SnowflakeTarget(SQLInterface):
             temp_table=sql.identifier(target_table_name),
             table=sql.identifier(remote_schema['name'])
         ))
-
-        ## Make streamable CSV records
-        csv_headers = list(remote_schema['schema']['properties'].keys())
-        rows_iter = iter(table_batch['records'])
 
         csv_dialect = csv.unix_dialect()
         csv_dialect.escapechar = '\\'
@@ -607,7 +625,8 @@ class SnowflakeTarget(SQLInterface):
                               remote_schema,
                               target_table_name,
                               csv_headers,
-                              csv_rows)
+                              csv_rows,
+                              noDedupe=noDedupe)
 
         return record_count
 
