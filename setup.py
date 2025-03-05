@@ -22,7 +22,7 @@ setup(
         'singer-python==5.9.0',
         'singer-target-postgres@git+https://github.com/minwareco/target-postgres.git@6daa48a30512cd94c0e0345f850fe908462a1afd',
         'target-redshift==0.2.4',
-        'botocore<1.13.0,>=1.12.253',
+        'botocore>=1.29.0,<2.0.0',
         'snowflake-connector-python==3.9.1',
     ],
     setup_requires=[
