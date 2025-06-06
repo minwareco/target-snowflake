@@ -817,7 +817,7 @@ class SnowflakeTarget(SQLInterface):
             json_type = 'number'
         elif sql_type == 'BOOLEAN':
             json_type = 'boolean'
-        elif sql_type == 'TEXT':
+        elif sql_type in ('TEXT', 'VARCHAR'):
             json_type = 'string'
         else:
             raise SnowflakeError('Unsupported type `{}` in existing target table'.format(sql_type))
