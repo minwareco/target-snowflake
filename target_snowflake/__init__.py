@@ -13,27 +13,46 @@ REQUIRED_CONFIG_KEYS = [
     'snowflake_warehouse',
     'snowflake_database',
     'snowflake_username',
-    'snowflake_password'
 ]
 
 
 def main(config, input_stream=None):
-    with connect(
-            user=config.get('snowflake_username'),
-            password=config.get('snowflake_password'),
-            role=config.get('snowflake_role'),
-            authenticator=config.get('snowflake_authenticator', 'snowflake'),
-            account=config.get('snowflake_account'),
-            warehouse=config.get('snowflake_warehouse'),
-            database=config.get('snowflake_database'),
-            schema=config.get('snowflake_schema', 'PUBLIC'),
-            autocommit=False,
-            client_session_keep_alive=True,
-            # turn off OCSP checking to avoid disconnection in the case of very long running connections
-            # why: https://www.snowflake.com/blog/latest-changes-to-how-snowflake-handles-ocsp/
-            # doc: https://community.snowflake.com/s/article/How-to-turn-off-OCSP-checking-in-Snowflake-client-drivers
-            insecure_mode=True,
-    ) as connection:
+    # Validate that we have either password or private_key for authentication
+    has_password = config.get('snowflake_password')
+    has_private_key = config.get('snowflake_private_key')
+
+    if not has_password and not has_private_key:
+        raise ValueError(
+            'Either snowflake_password or snowflake_private_key must be provided for authentication'
+        )
+
+    # Build connection parameters
+    connection_params = {
+        'user': config.get('snowflake_username'),
+        'role': config.get('snowflake_role'),
+        'account': config.get('snowflake_account'),
+        'warehouse': config.get('snowflake_warehouse'),
+        'database': config.get('snowflake_database'),
+        'schema': config.get('snowflake_schema', 'PUBLIC'),
+        'autocommit': False,
+        'client_session_keep_alive': True,
+        # turn off OCSP checking to avoid disconnection in the case of very long running connections
+        # why: https://www.snowflake.com/blog/latest-changes-to-how-snowflake-handles-ocsp/
+        # doc: https://community.snowflake.com/s/article/How-to-turn-off-OCSP-checking-in-Snowflake-client-drivers
+        'insecure_mode': True,
+    }
+
+    # Use private key authentication if available, otherwise fall back to password
+    if has_private_key:
+        connection_params['private_key'] = has_private_key
+        connection_params['authenticator'] = 'SNOWFLAKE_JWT'
+        LOGGER.info('Using private key authentication for Snowflake connection')
+    else:
+        connection_params['password'] = has_password
+        connection_params['authenticator'] = config.get('snowflake_authenticator', 'snowflake')
+        LOGGER.info('Using password authentication for Snowflake connection')
+
+    with connect(**connection_params) as connection:
         s3_config = config.get('target_s3')
 
         s3 = None
