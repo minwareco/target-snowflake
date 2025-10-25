@@ -18,10 +18,10 @@ REQUIRED_CONFIG_KEYS = [
 
 def main(config, input_stream=None):
     # Validate that we have either password or private_key for authentication
-    has_password = config.get('snowflake_password')
-    has_private_key = config.get('snowflake_private_key')
+    password = config.get('snowflake_password')
+    private_key = config.get('snowflake_private_key')
 
-    if not has_password and not has_private_key:
+    if not password and not private_key:
         raise ValueError(
             'Either snowflake_password or snowflake_private_key must be provided for authentication'
         )
@@ -43,12 +43,12 @@ def main(config, input_stream=None):
     }
 
     # Use private key authentication if available, otherwise fall back to password
-    if has_private_key:
-        connection_params['private_key'] = has_private_key
+    if private_key:
+        connection_params['private_key'] = private_key
         connection_params['authenticator'] = 'SNOWFLAKE_JWT'
         LOGGER.info('Using private key authentication for Snowflake connection')
     else:
-        connection_params['password'] = has_password
+        connection_params['password'] = password
         connection_params['authenticator'] = config.get('snowflake_authenticator', 'snowflake')
         LOGGER.info('Using password authentication for Snowflake connection')
 
