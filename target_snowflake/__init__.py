@@ -2,6 +2,8 @@ import singer
 from singer import utils
 from target_postgres import target_tools
 from target_redshift.s3 import S3
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 
 from target_snowflake.connection import connect
 from target_snowflake.snowflake import SnowflakeTarget
@@ -19,9 +21,9 @@ REQUIRED_CONFIG_KEYS = [
 def main(config, input_stream=None):
     # Validate that we have either password or private_key for authentication
     password = config.get('snowflake_password')
-    private_key = config.get('snowflake_private_key')
+    private_key_data = config.get('snowflake_private_key')
 
-    if not password and not private_key:
+    if not password and not private_key_data:
         raise ValueError(
             'Either snowflake_password or snowflake_private_key must be provided for authentication'
         )
@@ -43,8 +45,26 @@ def main(config, input_stream=None):
     }
 
     # Use private key authentication if available, otherwise fall back to password
-    if private_key:
-        connection_params['private_key'] = private_key
+    if private_key_data:
+        # Convert PEM-formatted private key string to bytes for Snowflake connector
+        # The private key should be in PEM format (with BEGIN/END PRIVATE KEY headers)
+        private_key_bytes = private_key_data.encode('utf-8')
+
+        # Load the PEM key and serialize to DER format (unencrypted PKCS8)
+        private_key_obj = serialization.load_pem_private_key(
+            private_key_bytes,
+            password=None,  # Assumes unencrypted private key
+            backend=default_backend()
+        )
+
+        # Serialize to DER format as required by Snowflake connector
+        private_key_der = private_key_obj.private_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+
+        connection_params['private_key'] = private_key_der
         connection_params['authenticator'] = 'SNOWFLAKE_JWT'
         LOGGER.info('Using private key authentication for Snowflake connection')
     else:
