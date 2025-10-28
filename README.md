@@ -22,12 +22,26 @@ pip install target-snowflake
    `~/singer.io/target_snowflake_config.json` with Snowflake connection
    information and target Snowflake schema and warehouse.
 
+   **Using password authentication:**
    ```json
    {
      "snowflake_account": "https://XXXXX.snowflakecomputing.com",
      "snowflake_username": "myuser",
      "snowflake_role": "myrole",
      "snowflake_password": "1234",
+     "snowflake_database": "my_analytics",
+     "snowflake_schema": "mytapname",
+     "snowflake_warehouse": "dw"
+   }
+   ```
+
+   **Using private key authentication (recommended for production):**
+   ```json
+   {
+     "snowflake_account": "https://XXXXX.snowflakecomputing.com",
+     "snowflake_username": "myuser",
+     "snowflake_role": "myrole",
+     "snowflake_private_key": "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----",
      "snowflake_database": "my_analytics",
      "snowflake_schema": "mytapname",
      "snowflake_warehouse": "dw"
@@ -61,10 +75,11 @@ here.
 | --------------------------- | --------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `snowflake_account`         | `["string"]`          | `N/A`      | `ACCOUNT` might require the `region` and `cloud` platform where your account is located, in the form of: `<your_account_name>.<region_id>.<cloud>` (e.g. `xy12345.east-us-2.azure`) [Refer to Snowflake's documentation about Account](https://docs.snowflake.net/manuals/user-guide/connecting.html#your-snowflake-account-name-and-url) |
 | `snowflake_username`        | `["string"]`          | `N/A`      |                                                                                                                                                                                                                                                                                                                                           |
-| `snowflake_password`        | `["string", "null"]`  | `null`     |                                                                                                                                                                                                                                                                                                                                           |
+| `snowflake_password`        | `["string", "null"]`  | `null`     | Password for authentication. Either `snowflake_password` or `snowflake_private_key` must be provided.                                                                                                                                                                                                                                                                                                                          |
+| `snowflake_private_key`     | `["string", "null"]`  | `null`     | Private key for key-pair authentication (recommended for production). Either `snowflake_password` or `snowflake_private_key` must be provided. When using private key, the authenticator is automatically set to `SNOWFLAKE_JWT`.                                                                                                                                                                                                                          |
 | `snowflake_role`            | `["string"]`          | `null`     | If not specified, Snowflake will use the user's default role. |
 | `snowflake_database`        | `["string"]`          | `N/A`      |                                                                                                                                                                                                                                                                                                                                           |
-| `snowflake_authenticator`   | `["string"]`          | `"snowflake"` | Speifies the authentication provider for snowflake to use. Valud options are the internal one ("snowflake"), a browser session ("externalbrowser"), or Okta ("https://<your_okta_account_name>.okta.com"). See the snowflake docs for more details.
+| `snowflake_authenticator`   | `["string"]`          | `"snowflake"` | Specifies the authentication provider for snowflake to use. Valid options are the internal one ("snowflake"), a browser session ("externalbrowser"), or Okta ("https://<your_okta_account_name>.okta.com"). Automatically set to "SNOWFLAKE_JWT" when using private key authentication. See the snowflake docs for more details.
 | `snowflake_schema`          | `["string", "null"]`  | `"PUBLIC"` |                                                                                                                                                                                                                                                                                                                                           |
 | `snowflake_warehouse`       | `["string"]`          | `N/A`      |                                                                                                                                                                                                                                                                                                                                           |
 | `invalid_records_detect`    | `["boolean", "null"]` | `true`     | Include `false` in your config to disable crashing on invalid records                                                                                                                                                                                                                                                                     |
