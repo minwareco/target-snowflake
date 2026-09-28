@@ -21,9 +21,8 @@ setup(
     install_requires=[
         'singer-python==5.9.0',
         'singer-target-postgres@git+https://github.com/minwareco/target-postgres.git@6daa48a30512cd94c0e0345f850fe908462a1afd',
-        'target-redshift==0.2.4',
-        'botocore<1.13.0,>=1.12.253',
-        'snowflake-connector-python==3.9.1',
+        'boto3==1.42.97',
+        'snowflake-connector-python==3.18.1',
     ],
     setup_requires=[
         "pytest-runner"

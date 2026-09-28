@@ -1,7 +1,7 @@
 import singer
 from singer import utils
 from target_postgres import target_tools
-from target_redshift.s3 import S3
+from target_snowflake.s3 import S3
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
