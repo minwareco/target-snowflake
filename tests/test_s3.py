@@ -38,6 +38,26 @@ def test_persist_uploads_utf8_bytes_under_prefixed_key(fake_client):
     assert client.objects[('bucket', key)] == 'a,b\n1,ü\n'.encode('utf-8')
 
 
+class ChunkedReadable:
+    """Mimics target_postgres.postgres.TransformStream, which is what persist_csv_rows passes in:
+    each read() returns the next CSV line and '' once the batch is exhausted."""
+
+    def __init__(self, lines):
+        self._lines = iter(lines)
+
+    def read(self, *args, **kwargs):
+        return next(self._lines, '')
+
+
+def test_persist_uploads_every_chunk_of_a_line_at_a_time_stream(fake_client):
+    client, _ = fake_client
+    s3 = S3('AKIA', 'secret', 'bucket')
+
+    bucket, key = s3.persist(ChunkedReadable(['a,b\n', '1,2\n', '3,4\n']))
+
+    assert client.objects[(bucket, key)] == b'a,b\n1,2\n3,4\n'
+
+
 def test_persist_treats_missing_key_prefix_as_empty(fake_client):
     _, key = S3('AKIA', 'secret', 'bucket', None).persist(io.StringIO('x'))
 

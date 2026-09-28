@@ -27,6 +27,14 @@ class S3:
 
     def persist(self, readable, key_prefix=''):
         key = self.key_prefix + key_prefix + uuid.uuid4().hex
-        # csv_rows is a text stream; S3 wants bytes
-        self.client.put_object(Bucket=self.bucket, Key=key, Body=readable.read().encode('utf-8'))
+        # persist_csv_rows passes a target_postgres TransformStream: each read() returns the next
+        # CSV line and '' once the batch is exhausted, so drain it the same way the internal-stage
+        # branch does. A batch is bounded by target-postgres's max_batch_size, so holding it in
+        # memory for a single put_object is fine.
+        chunks = []
+        line = readable.read()
+        while line:
+            chunks.append(line.encode('utf-8'))
+            line = readable.read()
+        self.client.put_object(Bucket=self.bucket, Key=key, Body=b''.join(chunks))
         return [self.bucket, key]
