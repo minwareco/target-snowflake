@@ -1,8 +1,14 @@
 # Copied verbatim from target-redshift 0.2.4, target_redshift/s3.py
 # (https://github.com/datamill-co/target-redshift, MIT License, Copyright 2018-2021 Data Mill
-# Services, LLC), so this target does not have to depend on that package. Only the module path
-# changed. persist_csv_rows passes a target_postgres TransformStream, whose read() returns one CSV
-# line per call and '' at the end; _EncodeBinaryReadable drains it into bytes for upload_fileobj.
+# Services, LLC). Only the module path changed.
+#
+# It lives here so the target can stay current on snowflake-connector-python: target-redshift pins
+# boto3<1.10 and urllib3==1.25.9, while snowflake-connector-python 3.18.1 and newer require
+# boto3>=1.24, so the two cannot be installed together. This helper was the only thing used from
+# target-redshift, so carrying it in-repo removes that package and lets the connector move.
+#
+# persist_csv_rows passes a target_postgres TransformStream, whose read() returns one CSV line per
+# call and '' at the end; _EncodeBinaryReadable drains it into bytes for upload_fileobj.
 
 import uuid
 
