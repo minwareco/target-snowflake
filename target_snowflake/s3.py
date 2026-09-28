@@ -1,5 +1,5 @@
 # Copied verbatim from target-redshift 0.2.4, target_redshift/s3.py
-# (https://github.com/datamill-co/target-redshift, MIT License, Copyright (c) 2018 Data Mill
+# (https://github.com/datamill-co/target-redshift, MIT License, Copyright 2018-2021 Data Mill
 # Services, LLC), so this target does not have to depend on that package. Only the module path
 # changed. persist_csv_rows passes a target_postgres TransformStream, whose read() returns one CSV
 # line per call and '' at the end; _EncodeBinaryReadable drains it into bytes for upload_fileobj.
