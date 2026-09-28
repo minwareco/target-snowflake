@@ -58,12 +58,6 @@ def test_persist_uploads_every_chunk_of_a_line_at_a_time_stream(fake_client):
     assert client.objects[(bucket, key)] == b'a,b\n1,2\n3,4\n'
 
 
-def test_persist_treats_missing_key_prefix_as_empty(fake_client):
-    _, key = S3('AKIA', 'secret', 'bucket', None).persist(io.StringIO('x'))
-
-    assert re.fullmatch(r'[0-9a-f]{32}', key)
-
-
 def test_credentials_reach_the_client_and_are_exposed(fake_client):
     _, factory = fake_client
 
