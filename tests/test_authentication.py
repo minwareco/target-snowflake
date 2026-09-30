@@ -4,8 +4,23 @@ Tests that the target properly handles password and private key authentication.
 """
 import pytest
 from unittest.mock import patch, MagicMock
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from target_snowflake import main
+
+
+def generate_test_private_key_pem():
+    """A fresh RSA key in PKCS#8 PEM form, the shape a real snowflake_private_key config value has.
+
+    Generated per test rather than checked in so the repository never carries a private key.
+    """
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode('utf-8')
 
 
 class TestAuthenticationConfiguration:
@@ -42,35 +57,7 @@ class TestAuthenticationConfiguration:
 
     def test_private_key_authentication_accepted(self):
         """Test that private key authentication works correctly."""
-        # Valid RSA 2048-bit private key in PEM format for testing (generated for test only)
-        test_private_key_pem = '''-----BEGIN PRIVATE KEY-----
-MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCn80L6Ookj51RS
-op7maLIJneBv5bKUCwZiIDRkLbG+uTJ4FNg2O4RA+q5RHpLcoNl8rxT34qN7by5F
-sfwmNoTFxEghUA38CT18M3hnbQmPx5QuzxNDETZG+85GrpVZqgdADv6zgKSlSmnx
-61EGHXglfSBId8DOR93Cs/I1U+VgNJr72fh8X2j1PkH+lwBgPO/4/w0nPEVRc4P5
-ZBaDWTRmCL2frZYvx6lvhWc+pYOzZQ4KUQgvRt39DWeqS8TpehOzL0zT6JOaf+Io
-c49/X3+dUqVEwb+xJusoKN7MxJfxz/jFvHYjRsfwBcCXV8hRRze4Hf6CPcGdFfC3
-3/FVO+3rAgMBAAECggEAEMmJQacQMNKH5H/0uhBvm0kjNza9FCcgoDZFMQOQPKwY
-61UfYhcDhSs0DqUBBk8y7fo3clTpBQbRQo4j0f3+ZMuAb4lSRzBKlluJXBfTWNfD
-bAUEETQV5Mp5N9TDgOQ0jVFHttF+Tjc97RHEVi7Oj5C45VrISYDNcw9hf7W/EPqH
-piNII7Dg5lRaiwPRvsuOHxwYjtIQQtYce1LnXGVeVJxSmFqEhVErEXA10CClYkhR
-givPNmQEKaVv0SisGoqL6hrCw4SbXt0fwuDlXbm8EeCQgzxe+3fJlCm48W20dHFO
-fhGNtCFG0QAk4Q3hxpkxNcqyu1eIjqxqhz8nylSfIQKBgQDVMDcn1fHpnw7uo6G+
-3atL6lxWtJlI/tJ5OuXwxtlV5X2P0E3NVLmt8b4UU46IGho46fa2Tp+IeYnbvo2x
-8hGdwmnBMhaBo4IwSyNlBO+1LfylhK/v1II7tq1Yo2TgXvfYnbX/oxka7hMl2E7f
-wC6Jf7NXgJe+e/LZd/c3QNvnlQKBgQDJrWdgZoFTs8WD1tPTaSRjtJzjxVTp5NoS
-w7o5xcxOqZqvh3nAa72rxT66wPGQMl4EFNZ875YXVm5i3RTVnZOqVZkDLhBu5EPv
-qbOuGfhld6XxAwtQ77XW8SvPTOlPLBK8MCbvKoC5DzkwCX3UVKQSxhkjGMyt5qKn
-LnCN8HUffwKBgDi1Z6aQEZaceeNe4ZKc8ojyIXfq+G9jYWdgFHRU4NEph5nuxhNd
-ezra+D398AciMmF7UuYxydwKwHIUoSp5gtgdM/ZxNW1sqh/gjNy9UGo4fmElB4vb
-Un1B3aCbbiUE/ha/9P64SuBP/gXuISUBwR9QOcuH6FWCMRpKABfRh+11AoGACWts
-+aawAa3S2t6M1EID7hhAf6720VncCaZUq2Aes8neLLaiLCecG0rCLEzYu4hutbgX
-cIxsMTjbPQjgcT3D6N/InspnABbvSWFewBH8dRjKimA/Bg+8KYboKe2ItCb11Q5W
-szMEAiDA5gp7cxBk/W99OxNsc+7ix/Y2UZrajZcCgYB1+Gsh0m6vodaC3QxiBz8Y
-oGyny41cNPWZbUeoklHEX9Z0AKrtaFJPcEUS08jnBUpH2jdrrUdvh8p92tRg6Yg/
-0k67zirAdkHbj/fxsHXn6VvMAxmjDYEolydYcZiyC4rbrks5ekk17P7RwqFS6Oca
-kePnRegr03GHzqW5tZzDbA==
------END PRIVATE KEY-----'''
+        test_private_key_pem = generate_test_private_key_pem()
 
         config = {
             'snowflake_account': 'test_account',
@@ -102,35 +89,7 @@ kePnRegr03GHzqW5tZzDbA==
 
     def test_private_key_takes_precedence_over_password(self):
         """Test that private key is used when both password and private key are provided."""
-        # Valid RSA 2048-bit private key in PEM format for testing (generated for test only)
-        test_private_key_pem = '''-----BEGIN PRIVATE KEY-----
-MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCn80L6Ookj51RS
-op7maLIJneBv5bKUCwZiIDRkLbG+uTJ4FNg2O4RA+q5RHpLcoNl8rxT34qN7by5F
-sfwmNoTFxEghUA38CT18M3hnbQmPx5QuzxNDETZG+85GrpVZqgdADv6zgKSlSmnx
-61EGHXglfSBId8DOR93Cs/I1U+VgNJr72fh8X2j1PkH+lwBgPO/4/w0nPEVRc4P5
-ZBaDWTRmCL2frZYvx6lvhWc+pYOzZQ4KUQgvRt39DWeqS8TpehOzL0zT6JOaf+Io
-c49/X3+dUqVEwb+xJusoKN7MxJfxz/jFvHYjRsfwBcCXV8hRRze4Hf6CPcGdFfC3
-3/FVO+3rAgMBAAECggEAEMmJQacQMNKH5H/0uhBvm0kjNza9FCcgoDZFMQOQPKwY
-61UfYhcDhSs0DqUBBk8y7fo3clTpBQbRQo4j0f3+ZMuAb4lSRzBKlluJXBfTWNfD
-bAUEETQV5Mp5N9TDgOQ0jVFHttF+Tjc97RHEVi7Oj5C45VrISYDNcw9hf7W/EPqH
-piNII7Dg5lRaiwPRvsuOHxwYjtIQQtYce1LnXGVeVJxSmFqEhVErEXA10CClYkhR
-givPNmQEKaVv0SisGoqL6hrCw4SbXt0fwuDlXbm8EeCQgzxe+3fJlCm48W20dHFO
-fhGNtCFG0QAk4Q3hxpkxNcqyu1eIjqxqhz8nylSfIQKBgQDVMDcn1fHpnw7uo6G+
-3atL6lxWtJlI/tJ5OuXwxtlV5X2P0E3NVLmt8b4UU46IGho46fa2Tp+IeYnbvo2x
-8hGdwmnBMhaBo4IwSyNlBO+1LfylhK/v1II7tq1Yo2TgXvfYnbX/oxka7hMl2E7f
-wC6Jf7NXgJe+e/LZd/c3QNvnlQKBgQDJrWdgZoFTs8WD1tPTaSRjtJzjxVTp5NoS
-w7o5xcxOqZqvh3nAa72rxT66wPGQMl4EFNZ875YXVm5i3RTVnZOqVZkDLhBu5EPv
-qbOuGfhld6XxAwtQ77XW8SvPTOlPLBK8MCbvKoC5DzkwCX3UVKQSxhkjGMyt5qKn
-LnCN8HUffwKBgDi1Z6aQEZaceeNe4ZKc8ojyIXfq+G9jYWdgFHRU4NEph5nuxhNd
-ezra+D398AciMmF7UuYxydwKwHIUoSp5gtgdM/ZxNW1sqh/gjNy9UGo4fmElB4vb
-Un1B3aCbbiUE/ha/9P64SuBP/gXuISUBwR9QOcuH6FWCMRpKABfRh+11AoGACWts
-+aawAa3S2t6M1EID7hhAf6720VncCaZUq2Aes8neLLaiLCecG0rCLEzYu4hutbgX
-cIxsMTjbPQjgcT3D6N/InspnABbvSWFewBH8dRjKimA/Bg+8KYboKe2ItCb11Q5W
-szMEAiDA5gp7cxBk/W99OxNsc+7ix/Y2UZrajZcCgYB1+Gsh0m6vodaC3QxiBz8Y
-oGyny41cNPWZbUeoklHEX9Z0AKrtaFJPcEUS08jnBUpH2jdrrUdvh8p92tRg6Yg/
-0k67zirAdkHbj/fxsHXn6VvMAxmjDYEolydYcZiyC4rbrks5ekk17P7RwqFS6Oca
-kePnRegr03GHzqW5tZzDbA==
------END PRIVATE KEY-----'''
+        test_private_key_pem = generate_test_private_key_pem()
 
         config = {
             'snowflake_account': 'test_account',
