@@ -41,7 +41,7 @@ pip install target-snowflake
      "snowflake_account": "https://XXXXX.snowflakecomputing.com",
      "snowflake_username": "myuser",
      "snowflake_role": "myrole",
-     "snowflake_private_key": "-----BEGIN PRIVATE KEY-----\nMIIE...\n-----END PRIVATE KEY-----",
+     "snowflake_private_key": "-----BEGIN PRIVATE KEY-----\n<your key, one line, newlines escaped as \\n>\n-----END PRIVATE KEY-----",
      "snowflake_database": "my_analytics",
      "snowflake_schema": "mytapname",
      "snowflake_warehouse": "dw"
